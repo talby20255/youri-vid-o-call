@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Allô Vidéo</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1f7a6d">
+<link rel="icon" href="icon-192.png">
+<style>
+  :root { color-scheme: light dark; --bg:#f3efe6; --ink:#16212e; --muted:#5d6877; --accent:#1f7a6d; --accent-ink:#fff; --danger:#b3261e; --card:#fffdf8; --line:#d9d2c3; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#10181f; --ink:#eef1f4; --muted:#9aa6b3; --accent:#3fb6a4; --accent-ink:#06201b; --danger:#ff8a80; --card:#17222b; --line:#2a3946; } }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 17px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding: env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0); }
+  main { max-width: 480px; margin: 0 auto; padding: 24px 20px; }
+  h1 { font-size: 1.9rem; margin: 0 0 4px; letter-spacing: -0.02em; }
+  p.sub { margin: 0 0 24px; color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+  label { display:block; font-size: .9rem; color: var(--muted); margin-bottom: 6px; }
+  .code { display:flex; gap:8px; align-items:center; }
+  .code output { flex:1; font: 600 1.3rem ui-monospace, Menlo, monospace; word-break: break-all; }
+  input { width:100%; padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; }
+  button, a.btn { display:inline-block; text-align:center; text-decoration:none; padding: 12px 16px; border-radius: 10px; border: 0; background: var(--accent); color: var(--accent-ink); font: 600 1rem system-ui, sans-serif; cursor: pointer; }
+  button.alt, a.btn.alt { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  button.end { background: var(--danger); color: #fff; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .row { display:flex; gap:8px; margin-top: 10px; }
+  .row > * { flex:1; }
+  #call { display:none; position: fixed; inset: 0; background:#000; z-index: 5; }
+  #remote { width:100%; height:100%; object-fit: cover; background:#000; }
+  #local { position:absolute; right:12px; top: calc(12px + env(safe-area-inset-top,0)); width: 28%; max-width: 140px; border-radius: 10px; border: 2px solid #fff; background:#222; }
+  #bar { position:absolute; left:0; right:0; bottom: calc(20px + env(safe-area-inset-bottom,0)); display:flex; gap:12px; justify-content:center; }
+  #bar button { min-width: 110px; }
+  #status { min-height: 1.5em; color: var(--muted); font-size: .95rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Allô Vidéo</h1>
+  <p class="sub">Parle et vois ton correspondant à distance.</p>
+
+  <div class="card">
+    <label>Ton code d’appel (donne-le à ton correspondant)</label>
+    <div class="code"><output id="myid">Connexion…</output><button class="alt" id="copy">Copier</button></div>
+  </div>
+
+  <div class="card">
+    <label for="peer">Code de la personne à appeler</label>
+    <input id="peer" autocomplete="off" autocapitalize="off" placeholder="Colle son code ici">
+    <div class="row"><button id="go">Appeler en vidéo</button></div>
+  </div>
+
+  <div class="card">
+    <label for="tel">Pas d’internet ? Appel téléphonique classique</label>
+    <input id="tel" type="tel" inputmode="tel" placeholder="+33 6 12 34 56 78">
+    <div class="row"><a class="btn alt" id="telgo" href="tel:">Appeler par téléphone</a></div>
+  </div>
+
+  <div class="card">
+    <label>Mode local, sans internet (téléphones proches)</label>
+    <p style="margin:0 0 10px;font-size:.9rem;color:var(--muted)">Un téléphone active son point d’accès Wi‑Fi, l’autre s’y connecte. Puis échangez vos codes (QR ou texte).</p>
+    <div class="row"><button id="lhost">Créer l’appel</button><button class="alt" id="ljoin">Répondre</button></div>
+    <label for="lin" style="margin-top:12px">Code reçu</label>
+    <textarea id="lin" rows="3" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:.8rem ui-monospace,monospace"></textarea>
+    <div class="row"><button class="alt" id="lscan">Scanner un QR</button><button class="alt" id="lok">Valider la réponse</button></div>
+    <div id="lscanbox" style="margin-top:8px"></div>
+    <label for="lout" style="margin-top:12px">Mon code à montrer ou copier</label>
+    <textarea id="lout" rows="3" readonly style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:.8rem ui-monospace,monospace"></textarea>
+    <div id="lqr" style="background:#fff;padding:8px;margin-top:8px;border-radius:10px;display:none;max-width:320px"></div>
+    <p id="lstatus" role="status" style="margin:8px 0 0;font-size:.9rem;color:var(--muted)"></p>
+  </div>
+
+  <p id="status" role="status"></p>
+</main>
+
+<div id="call">
+  <video id="remote" autoplay playsinline></video>
+  <video id="local" autoplay playsinline muted></video>
+  <div id="bar">
+    <button class="alt" id="mute" style="background:#fff;color:#000">Micro</button>
+    <button class="alt" id="cam" style="background:#fff;color:#000">Caméra</button>
+    <button class="end" id="hang">Raccrocher</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var peer, current, localStream;
+  function say(t) { $('status').textContent = t; }
+
+  function newId() { return Math.random().toString(36).slice(2, 8).toUpperCase(); }
+  var myId = newId();
+  try { myId = localStorage.getItem('allo-id') || myId; localStorage.setItem('allo-id', myId); } catch (e) {}
+
+  if (!window.Peer) { $('myid').textContent = 'Hors ligne'; say('Pas d’internet : utilise le mode local.'); return; }
+  peer = new Peer('allo-' + myId);
+  peer.on('open', function () { $('myid').textContent = myId; say('Prêt à appeler ou à recevoir un appel.'); });
+  peer.on('error', function (e) {
+    if (e.type === 'unavailable-id') { try { localStorage.removeItem('allo-id'); } catch (x) {} say('Code déjà pris. Recharge la page.'); }
+    else if (e.type === 'peer-unavailable') say('Ce code est introuvable ou la personne est hors ligne.');
+    else say('Erreur de connexion : ' + e.type);
+  });
+
+  function media() {
+    return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true }).then(function (s) { localStream = s; $('local').srcObject = s; return s; });
+  }
+  function show(call) {
+    current = call;
+    $('call').style.display = 'block';
+    call.on('stream', function (r) { $('remote').srcObject = r; });
+    call.on('close', end);
+    call.on('error', end);
+  }
+  function end() {
+    if (current) { try { current.close(); } catch (e) {} current = null; }
+    if (localStream) { localStream.getTracks().forEach(function (t) { t.stop(); }); localStream = null; }
+    $('call').style.display = 'none';
+    $('remote').srcObject = null;
+    say('Appel terminé.');
+  }
+
+  peer.on('call', function (call) {
+    if (!confirm('Appel vidéo entrant. Répondre ?')) { call.close(); return; }
+    media().then(function (s) { call.answer(s); show(call); })
+      .catch(function () { say('Autorise la caméra et le micro pour répondre.'); });
+  });
+
+  $('go').onclick = function () {
+    var id = $('peer').value.trim().toUpperCase();
+    if (!id) { say('Entre le code de ton correspondant.'); return; }
+    say('Appel en cours…');
+    media().then(function (s) { show(peer.call('allo-' + id, s)); })
+      .catch(function () { say('Autorise la caméra et le micro pour appeler.'); });
+  };
+  $('hang').onclick = end;
+  $('mute').onclick = function () { if (!localStream) return; var t = localStream.getAudioTracks()[0]; t.enabled = !t.enabled; this.textContent = t.enabled ? 'Micro' : 'Micro coupé'; };
+  $('cam').onclick = function () { if (!localStream) return; var t = localStream.getVideoTracks()[0]; t.enabled = !t.enabled; this.textContent = t.enabled ? 'Caméra' : 'Caméra coupée'; };
+  $('copy').onclick = function () { try { navigator.clipboard.writeText(myId); say('Code copié.'); } catch (e) { say('Copie le code à la main.'); } };
+  $('tel').oninput = function () { $('telgo').href = 'tel:' + this.value.replace(/[^\d+]/g, ''); };
+})();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var pc, stream;
+  function say(t) { $('lstatus').textContent = t; }
+
+  $('tel').addEventListener('input', function () { $('telgo').href = 'tel:' + this.value.replace(/[^\d+]/g, ''); });
+
+  function toB64(b) { var s = ''; for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s); }
+  function fromB64(t) { var s = atob(t), b = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) b[i] = s.charCodeAt(i); return b; }
+  async function pack(desc) {
+    var s = JSON.stringify(desc);
+    if (window.CompressionStream) {
+      var cs = new Blob([s]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+      return 'z' + toB64(new Uint8Array(await new Response(cs).arrayBuffer()));
+    }
+    return 'p' + btoa(unescape(encodeURIComponent(s)));
+  }
+  async function unpack(c) {
+    c = c.trim();
+    if (c[0] === 'z') {
+      var ds = new Blob([fromB64(c.slice(1))]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+      return JSON.parse(await new Response(ds).text());
+    }
+    return JSON.parse(decodeURIComponent(escape(atob(c.slice(1)))));
+  }
+
+  function stop() {
+    if (pc) { try { pc.close(); } catch (e) {} pc = null; }
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    $('call').style.display = 'none';
+    $('remote').srcObject = null;
+  }
+  function make() {
+    pc = new RTCPeerConnection({ iceServers: [] });
+    pc.ontrack = function (e) { $('remote').srcObject = e.streams[0]; };
+    pc.onconnectionstatechange = function () {
+      if (pc && pc.connectionState === 'connected') { $('call').style.display = 'block'; say('Connecté.'); }
+      if (pc && (pc.connectionState === 'failed' || pc.connectionState === 'closed')) { stop(); say('Appel terminé.'); }
+    };
+    stream.getTracks().forEach(function (t) { pc.addTrack(t, stream); });
+  }
+  function gathered() {
+    return new Promise(function (res) {
+      if (pc.iceGatheringState === 'complete') return res();
+      pc.onicegatheringstatechange = function () { if (pc.iceGatheringState === 'complete') res(); };
+      setTimeout(res, 4000);
+    });
+  }
+  async function media() {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
+    $('local').srcObject = stream;
+  }
+  async function show() {
+    var code = await pack(pc.localDescription);
+    $('lout').value = code;
+    var box = $('lqr');
+    try { var q = qrcode(0, 'L'); q.addData(code); q.make(); box.innerHTML = q.createSvgTag(4); box.style.display = 'block'; }
+    catch (e) { box.style.display = 'none'; }
+  }
+
+  $('lhost').onclick = async function () {
+    try {
+      stop(); await media(); make();
+      await pc.setLocalDescription(await pc.createOffer());
+      say('Préparation du code…'); await gathered(); await show();
+      say('Montre ce code à l’autre téléphone, puis colle ou scanne sa réponse et valide.');
+    } catch (e) { say('Erreur : ' + e.message); }
+  };
+  $('ljoin').onclick = async function () {
+    try {
+      var offer = await unpack($('lin').value);
+      stop(); await media(); make();
+      await pc.setRemoteDescription(offer);
+      await pc.setLocalDescription(await pc.createAnswer());
+      say('Préparation du code…'); await gathered(); await show();
+      say('Montre ce code au premier téléphone : l’appel démarre dès qu’il le valide.');
+    } catch (e) { say('Code invalide ou erreur : ' + e.message); }
+  };
+  $('lok').onclick = async function () {
+    try {
+      if (!pc) { say('Crée d’abord un appel.'); return; }
+      await pc.setRemoteDescription(await unpack($('lin').value));
+      say('Connexion…');
+    } catch (e) { say('Code invalide : ' + e.message); }
+  };
+  $('lscan').onclick = async function () {
+    if (!('BarcodeDetector' in window)) { say('Scan non pris en charge : colle le code à la main.'); return; }
+    try {
+      var s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      var v = document.createElement('video'); v.srcObject = s; v.setAttribute('playsinline', ''); v.style.width = '100%';
+      $('lscanbox').appendChild(v); await v.play();
+      var d = new BarcodeDetector({ formats: ['qr_code'] });
+      (function loop() {
+        d.detect(v).then(function (r) {
+          if (r.length) { $('lin').value = r[0].rawValue; s.getTracks().forEach(function (t) { t.stop(); }); v.remove(); say('Code scanné.'); }
+          else requestAnimationFrame(loop);
+        }).catch(function () { requestAnimationFrame(loop); });
+      })();
+    } catch (e) { say('Caméra refusée.'); }
+  };
+  $('hang').addEventListener('click', function () { if (pc) { stop(); say('Appel terminé.'); } });
+  $('mute').addEventListener('click', function () { if (!pc || !stream) return; var t = stream.getAudioTracks()[0]; t.enabled = !t.enabled; this.textContent = t.enabled ? 'Micro' : 'Micro coupé'; });
+  $('cam').addEventListener('click', function () { if (!pc || !stream) return; var t = stream.getVideoTracks()[0]; t.enabled = !t.enabled; this.textContent = t.enabled ? 'Caméra' : 'Caméra coupée'; });
+})();
+</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){});}</script>
+</body>
+</html>
